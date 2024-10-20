@@ -58,15 +58,3 @@ class Graphite:
                 print(f"Published {published} Metric")
 
         self._session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, callback=response)
-
-
-def main():
-    mainloop = GLib.MainLoop()
-
-    ts = int(time.time())
-
-    mainloop.run()
-
-
-if __name__ == "__main__":
-    main()
