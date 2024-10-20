@@ -1,9 +1,11 @@
 import json
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from typing import Any, Callable
 
 import gi
+
+from .metric import Gth
 
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib  # type: ignore
@@ -19,16 +21,6 @@ def log_gerror_handler(log_message: str):
 
 
 log = logging.getLogger(__name__)
-
-
-@dataclass
-class Gth:
-    alias: str
-    address: str
-    rssi: int
-    temp_celsius: float
-    humidity_percent: float
-    battery_percent: int
 
 
 class GthScanner:

@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass
 
 from .graphite import Graphite
+from .prometheus import PushGateway
 
 log = logging.getLogger(__name__)
 import json
@@ -16,7 +17,8 @@ import gi
 gi.require_version("Gio", "2.0")
 from gi.repository import GLib  # type: ignore
 
-from gth_exporter.bluez import Gth, GthScanner
+from gth_exporter.bluez import GthScanner
+from gth_exporter.metric import Gth
 
 log = logging.getLogger(__name__)
 
@@ -62,14 +64,21 @@ def main():
     parser.add_argument("-t", "--timeout", type=int, default=60, help="Scan timeout")
     parser.add_argument("-b", "--bluetooth-adapter", type=str, default="hci0", help="Bluetooth Adapter to use")
     parser.add_argument("-g", "--graphite-url", type=str, required=False, help="Post Metrics to Graphite Metrics URL")
+    parser.add_argument("-p", "--prometheus-url", type=str, required=False, help="Post Metrics to Prometheus Pushgateway URL")
     args = parser.parse_args(sys.argv[1:])
     setup_logging(args)
     alias_mapping = dict([alias_s.split("=") for alias_s in args.alias])
     mainloop = GLib.MainLoop()
+    # Graphite Support
     if args.graphite_url:
         graphite = Graphite(args.graphite_url, os.getenv("METRICS_USER"), os.getenv("METRICS_PASSWORD"))
     else:
         graphite = None
+    # Prometheus Pushgateway support
+    if args.prometheus_url:
+        prometheus = PushGateway(args.prometheus_url, os.getenv("METRICS_USER"), os.getenv("METRICS_PASSWORD"))
+    else:
+        prometheus = None
 
     def metrics_callback(gth: Gth):
         if graphite:
@@ -77,7 +86,7 @@ def main():
             hostname = socket.gethostname()
             metrics = [
                 {"time": now, "interval": 60, **metric, "tags": [f"mac={gth.address}", f"hostname={hostname}"]}
-                for metric in [
+                for metric in [  # FIXME: move abstraction to graphite.py
                     {"name": f"govee.{gth.alias}.temperature.celsius", "value": gth.temp_celsius},
                     {"name": f"govee.{gth.alias}.humidity.percent", "value": gth.humidity_percent},
                     {"name": f"govee.{gth.alias}.battery.percent", "value": gth.battery_percent},
@@ -85,6 +94,8 @@ def main():
                 ]
             ]
             graphite.send_message(metrics)
+        if prometheus:
+            prometheus.send_message(gth)
         print(gth)
 
     gth_scanner = GthScanner(alias_mapping, metrics_callback)
