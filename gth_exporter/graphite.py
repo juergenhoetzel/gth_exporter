@@ -1,5 +1,6 @@
 import json
 import logging
+import socket
 import time
 
 import gi
@@ -10,6 +11,22 @@ from typing import Any
 from gi.repository import Gio, GLib, Soup  # type: ignore
 
 log = logging.getLogger(__name__)
+
+from .metric import Gth
+
+
+def to_graphite(gth: Gth) -> list[dict]:
+    now = int(time.time())
+    hostname = socket.gethostname()
+    return [
+        {"time": now, "interval": 60, **metric, "tags": [f"mac={gth.address}", f"hostname={hostname}"]}
+        for metric in [
+            {"name": f"govee.{gth.alias}.temperature.celsius", "value": gth.temp_celsius},
+            {"name": f"govee.{gth.alias}.humidity.percent", "value": gth.humidity_percent},
+            {"name": f"govee.{gth.alias}.battery.percent", "value": gth.battery_percent},
+            {"name": f"govee.{gth.alias}.rssi", "value": gth.rssi},
+        ]
+    ]
 
 
 class Graphite:
@@ -28,7 +45,7 @@ class Graphite:
             logger = Soup.Logger.new(Soup.LoggerLogLevel.BODY)
             self._session.add_feature(logger)
 
-    def send_message(self, metrics: list[dict[str, Any]]):  # fixme: Fix type
+    def send_message(self, gth: Gth):
         uri = GLib.Uri.parse(self.url, GLib.UriFlags.NONE)
         message = Soup.Message.new_from_uri("POST", uri)
         if self.user and self.password:
@@ -42,7 +59,7 @@ class Graphite:
 
         assert message
 
-        body = json.dumps(metrics)
+        body = json.dumps(to_graphite(gth))
 
         message.set_request_body_from_bytes("application/json", GLib.Bytes.new(body.encode()))
 

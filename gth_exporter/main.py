@@ -82,18 +82,7 @@ def main():
 
     def metrics_callback(gth: Gth):
         if graphite:
-            now = int(time.time())
-            hostname = socket.gethostname()
-            metrics = [
-                {"time": now, "interval": 60, **metric, "tags": [f"mac={gth.address}", f"hostname={hostname}"]}
-                for metric in [  # FIXME: move abstraction to graphite.py
-                    {"name": f"govee.{gth.alias}.temperature.celsius", "value": gth.temp_celsius},
-                    {"name": f"govee.{gth.alias}.humidity.percent", "value": gth.humidity_percent},
-                    {"name": f"govee.{gth.alias}.battery.percent", "value": gth.battery_percent},
-                    {"name": f"govee.{gth.alias}.rssi", "value": gth.rssi},
-                ]
-            ]
-            graphite.send_message(metrics)
+            graphite.send_message(gth)
         if prometheus:
             prometheus.send_message(gth)
         print(gth)
