@@ -6,7 +6,6 @@ import time
 import gi
 
 gi.require_version("Soup", "3.0")
-from typing import Any
 
 from gi.repository import Gio, GLib, Soup  # type: ignore
 
@@ -16,15 +15,18 @@ from .metric import Gth
 
 
 def to_graphite(gth: Gth) -> list[dict]:
-    now = int(time.time())
-    hostname = socket.gethostname()
     return [
-        {"time": now, "interval": 60, **metric, "tags": [f"mac={gth.address}", f"hostname={hostname}"]}
+        {
+            "time": int(time.time()),
+            "interval": 60,
+            "tags": [f"mac={gth.address}", f"hostname={socket.gethostname()}", f"alias={gth.alias}"],
+            **metric,
+        }
         for metric in [
-            {"name": f"govee.{gth.alias}.temperature.celsius", "value": gth.temp_celsius},
-            {"name": f"govee.{gth.alias}.humidity.percent", "value": gth.humidity_percent},
-            {"name": f"govee.{gth.alias}.battery.percent", "value": gth.battery_percent},
-            {"name": f"govee.{gth.alias}.rssi", "value": gth.rssi},
+            {"name": f"govee.temperature.celsius", "value": gth.temp_celsius},
+            {"name": f"govee.humidity.percent", "value": gth.humidity_percent},
+            {"name": f"govee.battery.percent", "value": gth.battery_percent},
+            {"name": f"govee.rssi", "value": gth.rssi},
         ]
     ]
 
