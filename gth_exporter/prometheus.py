@@ -14,13 +14,16 @@ from .metric import Gth
 
 def to_prometheus(gth: Gth) -> str:
     return f"""
-    # TYPE govee_temperature_celsius gauge
-    govee_temperature_celsius{{alias="{gth.alias}", address="{gth.address}"}} {gth.temp_celsius}
-    # TYPE govee_humidity_percent
-    govee_humidity_percent{{alias="{gth.alias}", address="{gth.address}"}} {gth.humidity_percent}
-    # TYPE govee_battery_percent
-    govee_battery_percent{{alias="{gth.alias}", address="{gth.address}"}} {gth.battery_percent}
-    """
+# TYPE govee_temperature_celsius gauge
+govee_temperature_celsius{{alias="{gth.alias}", address="{gth.address}"}} {gth.temp_celsius}
+# TYPE govee_humidity_percent gauge
+govee_humidity_percent{{alias="{gth.alias}", address="{gth.address}"}} {gth.humidity_percent}
+# TYPE govee_battery_percent gauge
+govee_battery_percent{{alias="{gth.alias}", address="{gth.address}"}} {gth.battery_percent}
+# TYPE govee_rssi_dbm gauge
+# help Received Signal Strength Indicator
+govee_rssi_dbm{{alias="{gth.alias}", address="{gth.address}"}} {gth.rssi}
+"""
 
 
 class PushGateway:
