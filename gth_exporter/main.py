@@ -89,10 +89,12 @@ def main():
             async with asyncio.timeout(args.timeout):
                 beacons = await gth_scanner.scan_beacons(args.bluetooth_adapter)
                 while gth := await beacons.get():
+                    tasks = []
                     if graphite:
-                        await graphite.send_message(gth)
+                        tasks.append(asyncio.create_task(graphite.send_message(gth)))
                     if prometheus:
-                        await prometheus.send_message(gth)
+                        tasks.append(asyncio.create_task(prometheus.send_message(gth)))
+                    await asyncio.wait(tasks)
                     print(gth)
         except TimeoutError:
             ...
