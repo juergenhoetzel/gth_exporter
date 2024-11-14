@@ -84,13 +84,9 @@ def main():
 
     gth_scanner = GthScanner(alias_mapping)  # FIXME: Await metrics_callback
 
-    async def stop():  # FIXME
-        await asyncio.sleep(args.timeout)
-        log.debug("Stopping discovery")
-
     async def fun():
         try:
-            async with asyncio.timeout(10):
+            async with asyncio.timeout(args.timeout):
                 beacons = await gth_scanner.scan_beacons(args.bluetooth_adapter)
                 while gth := await beacons.get():
                     if graphite:
