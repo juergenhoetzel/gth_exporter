@@ -8,7 +8,7 @@ authors = [{name = "Jürgen Hötzel", email = "juergen@hoetzel.info"}]
 license = {file = "LICENSE"}
 classifiers = ["License :: OSI Approved :: MIT License"]
 dynamic = ["version", "description"]
-dependencies = ["PyGObject"]
+dependencies = ["PyGObject >= 3.50.0 "]
 
 [project.urls]
 Home = "https://github.com/juergenhoetzel/gth_exporter"

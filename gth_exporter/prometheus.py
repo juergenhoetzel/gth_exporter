@@ -42,11 +42,11 @@ class PushGateway:
             logger = Soup.Logger.new(Soup.LoggerLogLevel.BODY)
             self._session.add_feature(logger)
 
-    def send_message(self, gth: Gth):
+    async def send_message(self, gth: Gth):
         uri = GLib.Uri.parse(self.url, GLib.UriFlags.NONE)
         message = Soup.Message.new_from_uri("POST", uri)
+        assert self._session
         if self.user and self.password:
-            assert self._session
             auth_manager = self._session.get_feature(Soup.AuthManager)
             assert auth_manager
             auth = Soup.Auth.new(Soup.AuthBasic, message, "Basic")
@@ -56,15 +56,9 @@ class PushGateway:
 
         body = to_prometheus(gth)
 
-        message.set_request_body_from_bytes("application/x-www-form-urlencoded", GLib.Bytes.new(body.encode()))
+        message.set_request_body_from_bytes("application/x-www-form-urlencoded", GLib.Bytes.new(body.encode()))  # type: ignore
 
-        def response(session: Soup.Session, aresult: Gio.Task):
-            session.send_and_read_finish(aresult)
-            message = session.get_async_result_message(aresult)
-            assert message
-            status = message.get_status()
-            if status != Soup.Status.OK:
-                print(f"Error Posting to '{self.url}': {Soup.Status.get_phrase(status)}")
-                return
+        resp_body = await self._session.send_and_read_async(message, GLib.PRIORITY_DEFAULT)  # type: ignore
 
-        self._session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, callback=response)
+        if (status := message.get_status()) != Soup.Status.OK:
+            log.warning(f"Error Posting to '{self.url}': {Soup.Status.get_phrase(status)} -> {resp_body.get_data().decode()}")

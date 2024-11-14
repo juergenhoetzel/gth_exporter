@@ -1,16 +1,17 @@
 import argparse
 import logging
 import os
-import socket
 import sys
-import time
 from dataclasses import dataclass
+from time import sleep
+
+import gi.events  # type: ignore
 
 from .graphite import Graphite
 from .prometheus import PushGateway
 
 log = logging.getLogger(__name__)
-import json
+import asyncio
 
 import gi
 
@@ -68,7 +69,8 @@ def main():
     args = parser.parse_args(sys.argv[1:])
     setup_logging(args)
     alias_mapping = dict([alias_s.split("=") for alias_s in args.alias])
-    mainloop = GLib.MainLoop()
+    policy = gi.events.GLibEventLoopPolicy()
+    mainloop = policy.get_event_loop()
     # Graphite Support
     if args.graphite_url:
         graphite = Graphite(args.graphite_url, os.getenv("METRICS_USER"), os.getenv("METRICS_PASSWORD"))
@@ -80,22 +82,26 @@ def main():
     else:
         prometheus = None
 
-    def metrics_callback(gth: Gth):
-        if graphite:
-            graphite.send_message(gth)
-        if prometheus:
-            prometheus.send_message(gth)
-        print(gth)
+    gth_scanner = GthScanner(alias_mapping)  # FIXME: Await metrics_callback
 
-    gth_scanner = GthScanner(alias_mapping, metrics_callback)
-    gth_scanner.setup_adapter(args.bluetooth_adapter)
-
-    def stop():
+    async def stop():  # FIXME
+        await asyncio.sleep(args.timeout)
         log.debug("Stopping discovery")
-        gth_scanner.stop_discovery(mainloop.quit)
 
-    GLib.timeout_add_seconds(args.timeout, stop)
-    mainloop.run()
+    async def fun():
+        try:
+            async with asyncio.timeout(10):
+                beacons = await gth_scanner.scan_beacons(args.bluetooth_adapter)
+                while gth := await beacons.get():
+                    if graphite:
+                        await graphite.send_message(gth)
+                    if prometheus:
+                        await prometheus.send_message(gth)
+                    print(gth)
+        except TimeoutError:
+            ...
+
+    mainloop.run_until_complete(fun())  # FIXME Hack
 
 
 if __name__ == "__main__":
