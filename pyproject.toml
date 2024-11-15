@@ -9,6 +9,7 @@ license = {file = "LICENSE"}
 classifiers = ["License :: OSI Approved :: MIT License"]
 dynamic = ["version", "description"]
 dependencies = ["PyGObject >= 3.50.0 "]
+readme = "README.md"
 
 [project.urls]
 Home = "https://github.com/juergenhoetzel/gth_exporter"
