@@ -1,8 +1,9 @@
 name: release
 
+on: [push, pull_request]
+
 jobs:
   setup_and_build:
-    needs: [details, check_pypi]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
