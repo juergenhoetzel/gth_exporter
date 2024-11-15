@@ -1,2 +1,6 @@
 *.pyc
 dev-*
+.venv
+*#
+dist
+.envrc
