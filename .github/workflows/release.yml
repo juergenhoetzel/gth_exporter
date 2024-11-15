@@ -1,0 +1,26 @@
+name: release
+
+jobs:
+  setup_and_build:
+    needs: [details, check_pypi]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install flit
+        run: |
+          pip install flit
+
+      - name: Build source and wheel distribution
+        run: flit build
+
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: dist/
