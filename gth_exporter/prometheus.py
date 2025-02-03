@@ -43,7 +43,7 @@ class PushGateway:
             self._session.add_feature(logger)
 
     async def send_message(self, gth: Gth):
-        uri = GLib.Uri.parse(self.url, GLib.UriFlags.NONE)
+        uri = GLib.Uri.parse(f"{self.url}/address/{gth.address}", GLib.UriFlags.NONE)
         message = Soup.Message.new_from_uri("POST", uri)
         assert self._session
         if self.user and self.password:
@@ -61,4 +61,4 @@ class PushGateway:
         resp_body = await self._session.send_and_read_async(message, GLib.PRIORITY_DEFAULT)  # type: ignore
 
         if (status := message.get_status()) != Soup.Status.OK:
-            log.warning(f"Error Posting to '{self.url}': {Soup.Status.get_phrase(status)} -> {resp_body.get_data().decode()}")
+            log.warning(f"Error Posting to '{uri}': {Soup.Status.get_phrase(status)} -> {resp_body.get_data().decode()}")
