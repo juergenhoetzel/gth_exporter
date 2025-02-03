@@ -18,10 +18,16 @@ GTH_UUID = "0000ec88-0000-1000-8000-00805f9b34fb"
 log = logging.getLogger(__name__)
 
 
+def set_power(adapter_proxy, on=True):
+    adapter_proxy.Set(  # type: ignore
+        "(ssv)", "org.bluez.Adapter1", "Powered", GLib.Variant.new_boolean(on)
+    )
+
+
 async def set_discovery(adapter_proxy, on=True) -> bool:
     method = "StartDiscovery" if on else "StopDiscovery"
     try:
-        await adapter_proxy.call(method, None, Gio.DBusCallFlags.NO_AUTO_START, 500)  # type: ignore
+        await adapter_proxy.call(method, None, Gio.DBusCallFlags.NO_AUTO_START, 5000)  # type: ignore
         return True
     except GLib.Error as error:
         log.warning(f"{method}: {error.message}")
@@ -37,6 +43,15 @@ async def get_property(props_proxy, iface: str, property: str) -> Any:
             -1,
         )
     ).unpack()[0]
+
+
+async def set_property(props_proxy, iface: str, property: str, variant: GLib.Variant):
+    return await props_proxy.call(  # type: ignore
+        "Set",
+        GLib.Variant("(ssv)", (iface, property, variant)),
+        Gio.DBusCallFlags.NONE,
+        -1,
+    )
 
 
 class GthScanner:
@@ -61,6 +76,15 @@ class GthScanner:
         if not (adapter_proxy and adapter_props_proxy):
             raise RuntimeError("No usable bluez adapters found!")
         log.debug(f"Using adapter {adapter.get_object_path()}")
+
+        # Reset Adapter
+        await set_property(adapter_props_proxy, "org.bluez.Adapter1", "Powered", GLib.Variant.new_boolean(False))
+        await set_property(adapter_props_proxy, "org.bluez.Adapter1", "Powered", GLib.Variant.new_boolean(True))
+
+        self._adapter_proxy = adapter_proxy
+        self._adapter_props_proxy = adapter_props_proxy
+        if await get_property(adapter_props_proxy, "org.bluez.Adapter1", "Discovering"):
+            await set_discovery(adapter_proxy, False)
         try:
             await adapter_proxy.call(  # type: ignore
                 "SetDiscoveryFilter",
@@ -71,15 +95,12 @@ class GthScanner:
         except GLib.Error as err:
             raise RuntimeError(f"Failed to SetDiscoveryFilter: {err}")
 
-        self._adapter_proxy = adapter_proxy
-        self._adapter_props_proxy = adapter_props_proxy
-        if await get_property(adapter_props_proxy, "org.bluez.Adapter1", "Discovering"):
-            await set_discovery(adapter_proxy, False)
         await set_discovery(adapter_proxy, True)
         return self.queue  # FIXME, use closure
 
     def _object_added(self, __adapter__, dbus_object: Gio.DBusObject):
         if dbus_object.get_interface("org.bluez.Device1") and (props_proxy := dbus_object.get_interface("org.freedesktop.DBus.Properties")):
+            props_proxy = dbus_object.get_interface("org.freedesktop.DBus.Properties")
 
             async def handle_properties():
                 address = await get_property(props_proxy, "org.bluez.Device1", "Address")
@@ -99,17 +120,17 @@ class GthScanner:
                         Gio.DBusCallFlags.NONE,
                         -1,
                     )
-                    print(f"Property set to {new_alias}")
-                    uuids = await get_property(props_proxy, "org.bluez.Device1", "UUIDs")
-                    manufacturer_data = await get_property(props_proxy, "org.bluez.Device1", "ManufacturerData")
-                    rssi = await get_property(props_proxy, "org.bluez.Device1", "RSSI")
-                    if (GTH_UUID in uuids) and (data := manufacturer_data.get(1)) and len(data) >= 6:
-                        n = int.from_bytes(data[2:5], "big", signed=True)
-                        temp = n // 1000 / 10
-                        hum = n % 1000 / 10
-                        batt = int(data[5] & 0x7F)
-                        err = bool(data[5] & 0x80)
-                        if not err:
-                            self.queue.put_nowait(Gth(alias, address, rssi, temp, hum, batt))
+                uuids = await get_property(props_proxy, "org.bluez.Device1", "UUIDs")
+                manufacturer_data = await get_property(props_proxy, "org.bluez.Device1", "ManufacturerData")
+                rssi = await get_property(props_proxy, "org.bluez.Device1", "RSSI")
+                print(rssi)
+                if (GTH_UUID in uuids) and (data := manufacturer_data.get(1)) and len(data) >= 6:
+                    n = int.from_bytes(data[2:5], "big", signed=True)
+                    temp = n // 1000 / 10
+                    hum = n % 1000 / 10
+                    batt = int(data[5] & 0x7F)
+                    err = bool(data[5] & 0x80)
+                    if not err:
+                        self.queue.put_nowait(Gth(alias, address, rssi, temp, hum, batt))
 
-            asyncio.create_task(handle_properties())
+            return asyncio.create_task(handle_properties())
