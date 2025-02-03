@@ -1,8 +1,9 @@
 import argparse
+import json
 import logging
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from time import sleep
 
 import gi.events  # type: ignore
@@ -82,25 +83,27 @@ def main():
     else:
         prometheus = None
 
-    gth_scanner = GthScanner(alias_mapping)  # FIXME: Await metrics_callback
+    gth_scanner = GthScanner(alias_mapping)
 
-    async def fun():
+    async def async_main():
         try:
             async with asyncio.timeout(args.timeout):
                 beacons = await gth_scanner.scan_beacons(args.bluetooth_adapter)
                 while gth := await beacons.get():
                     tasks = []
+                    print(json.dumps(asdict(gth)))
                     if graphite:
                         tasks.append(asyncio.create_task(graphite.send_message(gth)))
                     if prometheus:
                         tasks.append(asyncio.create_task(prometheus.send_message(gth)))
-                    await asyncio.wait(tasks)
-                    print(gth)
+                    if tasks:
+                        await asyncio.wait(tasks)
         except TimeoutError:
             ...
 
-    mainloop.run_until_complete(fun())  # FIXME Hack
-
-
-if __name__ == "__main__":
-    main()
+    policy = gi.events.GLibEventLoopPolicy()
+    mainloop = policy.get_event_loop()
+    try:
+        mainloop.run_until_complete(async_main())
+    except KeyboardInterrupt:
+        ...
