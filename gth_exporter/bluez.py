@@ -1,9 +1,6 @@
 import asyncio
-import json
 import logging
-from argparse import BooleanOptionalAction
-from dataclasses import asdict
-from typing import Any, Callable
+from typing import Any
 
 import gi
 
@@ -35,14 +32,18 @@ async def set_discovery(adapter_proxy, on=True) -> bool:
 
 
 async def get_property(props_proxy, iface: str, property: str) -> Any:
-    return (
-        await props_proxy.call(  # type: ignore
-            "Get",
-            GLib.Variant("(ss)", (iface, property)),
-            Gio.DBusCallFlags.NONE,
-            -1,
-        )
-    ).unpack()[0]
+    try:
+        return (
+            await props_proxy.call(  # type: ignore
+                "Get",
+                GLib.Variant("(ss)", (iface, property)),
+                Gio.DBusCallFlags.NONE,
+                -1,
+            )
+        ).unpack()[0]
+    except GLib.Error as err:
+        if not err.matches(Gio.dbus_error_quark(), Gio.DBusError.INVALID_ARGS):
+            raise
 
 
 async def set_property(props_proxy, iface: str, property: str, variant: GLib.Variant):
@@ -120,10 +121,10 @@ class GthScanner:
                         Gio.DBusCallFlags.NONE,
                         -1,
                     )
+
                 uuids = await get_property(props_proxy, "org.bluez.Device1", "UUIDs")
                 manufacturer_data = await get_property(props_proxy, "org.bluez.Device1", "ManufacturerData")
                 rssi = await get_property(props_proxy, "org.bluez.Device1", "RSSI")
-                print(rssi)
                 if (GTH_UUID in uuids) and (data := manufacturer_data.get(1)) and len(data) >= 6:
                     n = int.from_bytes(data[2:5], "big", signed=True)
                     temp = n // 1000 / 10
